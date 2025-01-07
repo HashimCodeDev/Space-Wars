@@ -18,34 +18,33 @@ import enemyBulletHitImage from './assets/laserRedShot.png';
 
 import enemyImage from './assets/enemyShip.png';
 import rockImage from './assets/meteorBig.png';
+const preloadImage = (src) => {
+  const img = new Image();
+  img.src = src;
 
-const playerImg = new Image();
-playerImg.src = playerImage;
+  //Handle errors during loading
+  img.onerror = () => {
+    console.error(`Failed to load image: ${src}`);
+  };
 
-const playerLeftImg = new Image();
-playerLeftImg.src = playerLeft;
+  return img;
+};
 
-const playerRightImg = new Image();
-playerRightImg.src = playerRight;
-
-const bulletImg = new Image();
-bulletImg.src = playerBulletImage;
-
-const bulletHitImg = new Image();
-bulletHitImg.src = playerBulletHitImage;
-
-const enemyImg = new Image();
-enemyImg.src = enemyImage;
-
-const rockImg = new Image();
-rockImg.src = rockImage;
+const playerImg = preloadImage(playerImage);
+const playerLeftImg = preloadImage(playerLeft);
+const playerRightImg = preloadImage(playerRight);
+const bulletImg = preloadImage(playerBulletImage);
+const bulletHitImg = preloadImage(playerBulletHitImage);
+const enemyImg = preloadImage(enemyImage);
+const rockImg = preloadImage(rockImage);
 
 const App = () => {
   const [playerPosition, setPlayerPosition] = useState({ x: 200, y: 650 });
-  const [bullets, setBullets] = useState([]);
+  const [playerBullets, setPlayerBullets] = useState([]);
   const [enemies, setEnemies] = useState([]);
   const [rocks, setRocks] = useState([]);
   const [score, setScore] = useState(0);
+  const [particles, setParticles] = useState([]);
 
   const [isMovingLeft, setIsMovingLeft] = useState(false);
   const [isMovingRight, setIsMovingRight] = useState(false);
@@ -58,12 +57,25 @@ const App = () => {
   const playerSpeed = 10; // Define how fast the player moves per frame
   const bulletSpeed = 5; // Define how fast the bullet moves per frame
 
+  // Function to update the particles
+  const updateParticles = useCallback(() => {
+    setParticles((prevParticles) =>
+      prevParticles.map((particle) => ({
+        ...particle,
+        x: particle.x + particle.speedX,
+        y: particle.y + particle.speedY,
+      }))
+    );
+  }, []);
+
   //Creates a new bullet when the space key is pressed
   const newBullet = useMemo(
     () => ({
       x: playerPosition.x + 15,
       y: playerPosition.y,
       speed: bulletSpeed,
+      hitTimer: 0,
+      image: bulletImg,
     }),
     [playerPosition.x]
   );
@@ -96,7 +108,7 @@ const App = () => {
 
   // Function to move the bullets
   const moveBullets = useCallback(() => {
-    setBullets((prevBullets) =>
+    setPlayerBullets((prevBullets) =>
       prevBullets
         .map((bullet) => ({ ...bullet, y: bullet.y - bullet.speed }))
         .filter((bullet) => bullet.y > 0)
@@ -106,13 +118,21 @@ const App = () => {
   });
 
   const fireBullet = throttle(100, () => {
-    setBullets((prevBullets) => [...prevBullets, newBullet]);
+    setPlayerBullets((prevBullets) => [...prevBullets, newBullet]);
   });
 
   // Function to spawn enemies
   const enemySpawner = useCallback(() => {
     const randomX = Math.floor(Math.random() * 350);
-    setEnemies((prevEnemies) => [...prevEnemies, { x: randomX, y: 0 }]);
+    rocks.forEach((rock) => {
+      if (rock.x === randomX) {
+        return;
+      }
+    });
+    setEnemies((prevEnemies) => [
+      ...prevEnemies,
+      { x: randomX, y: 0, image: enemyImg },
+    ]);
   }, []);
 
   // Function to move the enemies
@@ -128,7 +148,10 @@ const App = () => {
   // Function to spawn rocks
   const rockSpawner = useCallback(() => {
     const randomX = Math.floor(Math.random() * 350);
-    setRocks((prevRocks) => [...prevRocks, { x: randomX, y: 0 }]);
+    setRocks((prevRocks) => [
+      ...prevRocks,
+      { x: randomX, y: 0, image: rockImg },
+    ]);
   }, []);
 
   // Function to move the rocks
@@ -199,15 +222,61 @@ const App = () => {
     };
   }, [movePlayer, isMovingLeft, isMovingRight]);
 
+  useEffect(() => {
+    // Generate initial particles
+    const newParticles = [];
+    for (let i = 0; i < 100; i++) {
+      // Adjust number of particles as needed
+      newParticles.push({
+        x: Math.floor(Math.random() * 400),
+        y: Math.floor(Math.random() * 700),
+        speedX: 0,
+        speedY: playerSpeed / 2, // Speed of the player
+        width: Math.random() * 3 + 1, // Random size between 1 and 4
+        height: Math.random() * 3 + 1,
+        color: `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${
+          Math.random() * 255
+        })`, // Random color with opacity
+      });
+    }
+    setParticles(newParticles);
+  }, []);
+
+  //Move the particles
+  useEffect(() => {
+    setParticles((prevParticles) => {
+      // Map through particles and reset those that are off-screen
+      return prevParticles.map((particle) => {
+        if (particle.y >= 750) {
+          // Reset particle's y position to 0 when it goes off-screen
+          return {
+            ...particle,
+            y: 0,
+            // Optionally reset the x position to a new random value
+            x: Math.random() * 400, // Random x position
+          };
+        }
+        return particle;
+      });
+    });
+
+    if (particles.length > 0) {
+      const particleAnimationFrameId = requestAnimationFrame(updateParticles);
+      return () => {
+        cancelAnimationFrame(particleAnimationFrameId);
+      };
+    }
+  }, [particles, updateParticles]);
+
   // Move the bullets
   useEffect(() => {
-    if (bullets.length > 0) {
+    if (playerBullets.length > 0) {
       bulletAnimationFrameId.current = requestAnimationFrame(moveBullets);
     }
     return () => {
       cancelAnimationFrame(bulletAnimationFrameId.current);
     };
-  }, [bullets, moveBullets]);
+  }, [playerBullets, moveBullets]);
 
   // Spawn enemies every 5 seconds
   useEffect(() => {
@@ -247,7 +316,7 @@ const App = () => {
 
   useEffect(() => {
     // Check for collision between bullets and enemies
-    bullets.forEach((bullet) => {
+    playerBullets.forEach((bullet) => {
       enemies.forEach((enemy) => {
         if (isCollision(bullet, enemy)) {
           setEnemies((prevEnemies) => prevEnemies.filter((e) => e !== enemy));
@@ -255,7 +324,7 @@ const App = () => {
         }
       });
     });
-  }, [bullets, enemies]);
+  }, [playerBullets, enemies]);
 
   useEffect(() => {
     // Check for collision between player and enemies
@@ -264,7 +333,7 @@ const App = () => {
         alert('Game Over');
         setScore(0);
         setPlayerPosition({ x: 200, y: 650 });
-        setBullets([]);
+        setPlayerBullets([]);
         setEnemies([]);
       }
     });
@@ -277,7 +346,7 @@ const App = () => {
         alert('Game Over');
         setScore(0);
         setPlayerPosition({ x: 200, y: 650 });
-        setBullets([]);
+        setPlayerBullets([]);
         setRocks([]);
       }
     });
@@ -285,19 +354,27 @@ const App = () => {
 
   useEffect(() => {
     // Check for collision between bullets and rocks
-    bullets.forEach((bullet) => {
+    playerBullets.forEach((bullet) => {
       rocks.forEach((rock) => {
         if (isCollision(bullet, rock)) {
-          setBullets((prevBullets) => prevBullets.filter((b) => b !== bullet));
+          setPlayerBullets((prevBullets) =>
+            prevBullets.filter((b) => b !== bullet)
+          );
         }
       });
     });
-  }, [bullets, rocks]);
+  }, [playerBullets, rocks]);
 
   // Function to render the canvas
   const renderCanvas = (ctx, canvasWidth, canvasHeight) => {
     ctx.fillStyle = 'black';
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    // Draw the particles
+    particles.forEach((particle) => {
+      ctx.fillStyle = 'white';
+      ctx.fillRect(particle.x, particle.y, particle.width, particle.height);
+    });
 
     // Draw the player at the updated position
     let currentImage = playerImg;
@@ -311,7 +388,7 @@ const App = () => {
     ctx.drawImage(currentImage, playerPosition.x, playerPosition.y, 40, 40);
 
     // Draw the bullets
-    bullets.forEach((bullet) => {
+    playerBullets.forEach((bullet) => {
       const hitEnemy = enemies.find((enemy) => isCollision(bullet, enemy));
       const hitRock = rocks.find((rock) => isCollision(bullet, rock));
       if (hitEnemy || hitRock) {
@@ -324,7 +401,9 @@ const App = () => {
         bullet.hitTimer--;
       } else {
         if (bullet.speed === 0) {
-          setBullets((prevBullets) => prevBullets.filter((b) => b !== bullet));
+          setPlayerBullets((prevBullets) =>
+            prevBullets.filter((b) => b !== bullet)
+          );
         }
         ctx.drawImage(bulletImg, bullet.x, bullet.y, 10, 20);
       }
