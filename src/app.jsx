@@ -1,15 +1,21 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { throttle } from 'lodash/fp';
 import './style.css';
 
 import GameCanvas from './components/gameCanvas';
 
-import { isCollision } from './utils/isCollission';
+import { isCollision } from './utils/isCollision';
 
 import playerImage from './assets/player.png';
 import playerLeft from './assets/playerLeft.png';
 import playerRight from './assets/playerRight.png';
 import playerDamaged from './assets/playerDamaged.png';
-import bulletImage from './assets/laserGreen.png';
+
+import playerBulletImage from './assets/laserGreen.png';
+import playerBulletHitImage from './assets/laserGreenShot.png';
+import enemyBulletImage from './assets/laserRed.png';
+import enemyBulletHitImage from './assets/laserRedShot.png';
+
 import enemyImage from './assets/enemyShip.png';
 import rockImage from './assets/meteorBig.png';
 
@@ -23,7 +29,10 @@ const playerRightImg = new Image();
 playerRightImg.src = playerRight;
 
 const bulletImg = new Image();
-bulletImg.src = bulletImage;
+bulletImg.src = playerBulletImage;
+
+const bulletHitImg = new Image();
+bulletHitImg.src = playerBulletHitImage;
 
 const enemyImg = new Image();
 enemyImg.src = enemyImage;
@@ -54,6 +63,7 @@ const App = () => {
     () => ({
       x: playerPosition.x + 15,
       y: playerPosition.y,
+      speed: bulletSpeed,
     }),
     [playerPosition.x]
   );
@@ -88,11 +98,15 @@ const App = () => {
   const moveBullets = useCallback(() => {
     setBullets((prevBullets) =>
       prevBullets
-        .map((bullet) => ({ ...bullet, y: bullet.y - bulletSpeed }))
+        .map((bullet) => ({ ...bullet, y: bullet.y - bullet.speed }))
         .filter((bullet) => bullet.y > 0)
     );
 
     bulletAnimationFrameId.current = requestAnimationFrame(moveBullets);
+  });
+
+  const fireBullet = throttle(100, () => {
+    setBullets((prevBullets) => [...prevBullets, newBullet]);
   });
 
   // Function to spawn enemies
@@ -156,9 +170,9 @@ const App = () => {
           }
         }
       }
-      if (event.key === ' ') {
+      if (event.key === ' ' || event.key === 'ArrowUp') {
         console.log('Fired a bullet');
-        setBullets((prevBullets) => [...prevBullets, newBullet]);
+        fireBullet();
       }
     };
 
@@ -236,7 +250,6 @@ const App = () => {
     bullets.forEach((bullet) => {
       enemies.forEach((enemy) => {
         if (isCollision(bullet, enemy)) {
-          setBullets((prevBullets) => prevBullets.filter((b) => b !== bullet));
           setEnemies((prevEnemies) => prevEnemies.filter((e) => e !== enemy));
           setScore(score + 50);
         }
@@ -296,8 +309,25 @@ const App = () => {
       currentImage = playerRightImg;
     }
     ctx.drawImage(currentImage, playerPosition.x, playerPosition.y, 40, 40);
+
+    // Draw the bullets
     bullets.forEach((bullet) => {
-      ctx.drawImage(bulletImg, bullet.x, bullet.y, 10, 20);
+      const hitEnemy = enemies.find((enemy) => isCollision(bullet, enemy));
+      const hitRock = rocks.find((rock) => isCollision(bullet, rock));
+      if (hitEnemy || hitRock) {
+        bullet.hitTimer = 10;
+        bullet.speed = 0;
+      }
+
+      if (bullet.hitTimer > 0) {
+        ctx.drawImage(bulletHitImg, bullet.x, bullet.y, 10, 20);
+        bullet.hitTimer--;
+      } else {
+        if (bullet.speed === 0) {
+          setBullets((prevBullets) => prevBullets.filter((b) => b !== bullet));
+        }
+        ctx.drawImage(bulletImg, bullet.x, bullet.y, 10, 20);
+      }
     });
     enemies.forEach((enemy) => {
       ctx.drawImage(enemyImg, enemy.x, enemy.y, 40, 40);
