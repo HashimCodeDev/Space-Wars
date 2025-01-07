@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import './style.css';
 
 import GameCanvas from './components/gameCanvas';
 
 import playerImage from './assets/player.png';
 import bulletImage from './assets/laserGreen.png';
+import enemyImage from './assets/enemyShip.png';
 
 const playerImg = new Image();
 playerImg.src = playerImage;
@@ -12,17 +13,32 @@ playerImg.src = playerImage;
 const bulletImg = new Image();
 bulletImg.src = bulletImage;
 
+const enemyImg = new Image();
+enemyImg.src = enemyImage;
+
 const App = () => {
   const [playerPosition, setPlayerPosition] = useState({ x: 200, y: 650 });
   const [bullets, setBullets] = useState([]);
+  const [enemies, setEnemies] = useState([]);
 
   const [isMovingLeft, setIsMovingLeft] = useState(false);
   const [isMovingRight, setIsMovingRight] = useState(false);
 
-  const animationFrameId = React.useRef(null);
+  const playerAnimationFrameId = React.useRef(null);
+  const bulletAnimationFrameId = React.useRef(null);
+  const enemyAnimationFrameId = React.useRef(null);
 
   const playerSpeed = 10; // Define how fast the player moves per frame
   const bulletSpeed = 5; // Define how fast the bullet moves per frame
+
+  //Creates a new bullet when the space key is pressed
+  const newBullet = useMemo(
+    () => ({
+      x: playerPosition.x + 15,
+      y: playerPosition.y,
+    }),
+    [playerPosition.x]
+  );
 
   const movePlayer = useCallback(() => {
     setPlayerPosition((prevPosition) => {
@@ -38,10 +54,10 @@ const App = () => {
       return { ...prevPosition, x: newX };
     });
     if (isMovingLeft || isMovingRight) {
-      animationFrameId.current = requestAnimationFrame(movePlayer);
+      playerAnimationFrameId.current = requestAnimationFrame(movePlayer);
     } else {
-      cancelAnimationFrame(animationFrameId.current);
-      animationFrameId.current = null;
+      cancelAnimationFrame(playerAnimationFrameId.current);
+      playerAnimationFrameId.current = null;
     }
   }, [isMovingLeft, isMovingRight]);
 
@@ -52,32 +68,46 @@ const App = () => {
         .filter((bullet) => bullet.y > 0)
     );
 
-    animationFrameId.current = requestAnimationFrame(moveBullets);
+    bulletAnimationFrameId.current = requestAnimationFrame(moveBullets);
+  });
+
+  const enemySpawner = useCallback(() => {
+    const randomX = Math.floor(Math.random() * 350);
+    setEnemies((prevEnemies) => [...prevEnemies, { x: randomX, y: 0 }]);
   }, []);
+
+  const moveEnemies = useCallback(() => {
+    setEnemies((prevEnemies) =>
+      prevEnemies
+        .map((enemy) => ({ ...enemy, y: enemy.y + 2 }))
+        .filter((enemy) => enemy.y < 700)
+    );
+    enemyAnimationFrameId.current = requestAnimationFrame(moveEnemies);
+  });
 
   // Handle key down and key up events
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === 'ArrowLeft') {
-        console.log('Started moving left');
-        setIsMovingLeft(true);
-        if (!animationFrameId.current) {
-          movePlayer();
+        if (!isMovingRight) {
+          console.log('Started moving left');
+          setIsMovingLeft(true);
+          if (!playerAnimationFrameId.current) {
+            movePlayer();
+          }
         }
       } else if (event.key === 'ArrowRight') {
-        console.log('Started moving right');
-        setIsMovingRight(true);
-      } else if (event.key === ' ') {
-        console.log('Fired a bullet');
-        setBullets((prevBullets) => {
-          return [
-            ...prevBullets,
-            { x: playerPosition.x + 15, y: playerPosition.y },
-          ];
-        });
-        if (!animationFrameId.current) {
-          moveBullets();
+        if (!isMovingLeft) {
+          console.log('Started moving Right');
+          setIsMovingRight(true);
+          if (!playerAnimationFrameId.current) {
+            movePlayer();
+          }
         }
+      }
+      if (event.key === ' ') {
+        console.log('Fired a bullet');
+        setBullets((prevBullets) => [...prevBullets, newBullet]);
       }
     };
 
@@ -101,7 +131,32 @@ const App = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [movePlayer, isMovingLeft, isMovingRight, moveBullets]);
+  }, [movePlayer, isMovingLeft, isMovingRight]);
+
+  useEffect(() => {
+    if (bullets.length > 0) {
+      bulletAnimationFrameId.current = requestAnimationFrame(moveBullets);
+    }
+    return () => {
+      cancelAnimationFrame(bulletAnimationFrameId.current);
+    };
+  }, [bullets, moveBullets]);
+
+  useEffect(() => {
+    const enemySpawnerInterval = setInterval(enemySpawner, 5000);
+    return () => {
+      clearInterval(enemySpawnerInterval);
+    };
+  }, [enemySpawner]);
+
+  useEffect(() => {
+    if (enemies.length > 0) {
+      enemyAnimationFrameId.current = requestAnimationFrame(moveEnemies);
+    }
+    return () => {
+      cancelAnimationFrame(enemyAnimationFrameId.current);
+    };
+  }, [enemies, moveEnemies]);
 
   const renderCanvas = (ctx, canvasWidth, canvasHeight) => {
     ctx.fillStyle = 'black';
@@ -111,6 +166,9 @@ const App = () => {
     ctx.drawImage(playerImg, playerPosition.x, playerPosition.y, 40, 40);
     bullets.forEach((bullet) => {
       ctx.drawImage(bulletImg, bullet.x, bullet.y, 10, 20);
+    });
+    enemies.forEach((enemy) => {
+      ctx.drawImage(enemyImg, enemy.x, enemy.y, 40, 40);
     });
   };
 
