@@ -1,0 +1,78 @@
+/* General reset to remove default margin and padding */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  /* Set up the body for the game */
+  body {
+    font-family: Arial, sans-serif;
+    background-color: #111; /* Dark background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden; /* Prevent scrolling */
+    color: #fff; /* White text */
+  }
+  
+  /* Canvas container */
+  canvas {
+    border: 2px solid white; /* Optional: adds a border around the canvas */
+    display: block; /* Removes extra space below the canvas */
+    background-color: #000; /* Black background for the game canvas */
+  }
+  
+  /* Player Styles (for debugging or additional visual effects) */
+  .player {
+    position: absolute;
+    background-color: red; /* Use for debugging the player position */
+    width: 40px;
+    height: 40px;
+    border-radius: 50%; /* Optional: makes the player round */
+    transition: transform 0.1s ease-in-out;
+  }
+  
+  /* Basic styles for any UI elements (if needed) */
+  .ui {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 10;
+    font-size: 20px;
+    color: white;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px;
+    border-radius: 5px;
+  }
+  
+  /* Styling for buttons or any interactive elements */
+  button {
+    padding: 10px 20px;
+    background-color: #1d1d1d;
+    color: #fff;
+    border: 1px solid #444;
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 16px;
+    transition: background-color 0.3s ease;
+  }
+  
+  button:hover {
+    background-color: #333;
+  }
+  
+  /* Optional: Add a "Game Over" message or score panel */
+  .game-over {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 30px;
+    color: red;
+    font-weight: bold;
+    display: none;
+  }
+  
+  
