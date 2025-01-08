@@ -33,6 +33,7 @@ const preloadImage = (src) => {
 const playerImg = preloadImage(playerImage);
 const playerLeftImg = preloadImage(playerLeft);
 const playerRightImg = preloadImage(playerRight);
+const playerDamagedImg = preloadImage(playerDamaged);
 const bulletImg = preloadImage(playerBulletImage);
 const bulletHitImg = preloadImage(playerBulletHitImage);
 const enemyImg = preloadImage(enemyImage);
@@ -48,24 +49,57 @@ const App = () => {
 
   const [isMovingLeft, setIsMovingLeft] = useState(false);
   const [isMovingRight, setIsMovingRight] = useState(false);
+  const [isGameOver, setIsGameOver] = useState(false);
 
   const playerAnimationFrameId = React.useRef(null);
   const bulletAnimationFrameId = React.useRef(null);
   const enemyAnimationFrameId = React.useRef(null);
   const rockAnimationFrameId = React.useRef(null);
 
-  const playerSpeed = 10; // Define how fast the player moves per frame
-  const bulletSpeed = 5; // Define how fast the bullet moves per frame
+  const [playerSpeed, setPlayerSpeed] = useState(5); // Define how fast the player moves per frame
+  const [bulletSpeed, setBulletSpeed] = useState(5); // Define how fast the bullet moves per frame
+  const [enemySpeed, setEnemySpeed] = useState(2);
+
+  function gameOver() {
+    setIsGameOver(true);
+    setPlayerSpeed(0);
+    setBulletSpeed(0);
+    setEnemySpeed(0);
+  }
+
+  useEffect(() => {
+    if (isGameOver) {
+      cancelAnimationFrame(playerAnimationFrameId.current);
+      cancelAnimationFrame(bulletAnimationFrameId.current);
+      cancelAnimationFrame(enemyAnimationFrameId.current);
+      cancelAnimationFrame(rockAnimationFrameId.current);
+    }
+  }, [isGameOver]);
+
+  function restartGame() {
+    setIsGameOver(false);
+    setIsMovingLeft(false);
+    setIsMovingRight(false);
+    setPlayerSpeed(5);
+    setBulletSpeed(5);
+    setEnemySpeed(2);
+    setScore(0);
+    setPlayerPosition({ x: 200, y: 650 });
+    setPlayerBullets([]);
+    setRocks([]);
+  }
 
   // Function to update the particles
   const updateParticles = useCallback(() => {
-    setParticles((prevParticles) =>
-      prevParticles.map((particle) => ({
-        ...particle,
-        x: particle.x + particle.speedX,
-        y: particle.y + particle.speedY,
-      }))
-    );
+    if (!isGameOver) {
+      setParticles((prevParticles) =>
+        prevParticles.map((particle) => ({
+          ...particle,
+          x: particle.x + particle.speedX,
+          y: particle.y + particle.speedY,
+        }))
+      );
+    }
     setParticles((prevParticles) => {
       // Map through particles and reset those that are off-screen
       return prevParticles.map((particle) => {
@@ -94,7 +128,9 @@ const App = () => {
   );
 
   const scoreUpdation = useCallback(() => {
-    setScore(score + 1);
+    if (!isGameOver) {
+      setScore(score + 1);
+    }
   }, [score]);
 
   // Function to move the player
@@ -142,7 +178,7 @@ const App = () => {
   const moveEnemies = useCallback(() => {
     setEnemies((prevEnemies) =>
       prevEnemies
-        .map((enemy) => ({ ...enemy, y: enemy.y + 2 }))
+        .map((enemy) => ({ ...enemy, y: enemy.y + enemySpeed }))
         .filter((enemy) => enemy.y < 700)
     );
     enemyAnimationFrameId.current = requestAnimationFrame(moveEnemies);
@@ -161,7 +197,7 @@ const App = () => {
   const moveRocks = useCallback(() => {
     setRocks((prevRocks) =>
       prevRocks
-        .map((rock) => ({ ...rock, y: rock.y + 2 }))
+        .map((rock) => ({ ...rock, y: rock.y + enemySpeed }))
         .filter((rock) => rock.y < 700)
     );
     rockAnimationFrameId.current = requestAnimationFrame(moveRocks);
@@ -312,11 +348,7 @@ const App = () => {
     // Check for collision between player and enemies
     enemies.forEach((enemy) => {
       if (isCollision(playerPosition, enemy)) {
-        alert('Game Over');
-        setScore(0);
-        setPlayerPosition({ x: 200, y: 650 });
-        setPlayerBullets([]);
-        setEnemies([]);
+        gameOver();
       }
     });
   }, [playerPosition, enemies]);
@@ -325,11 +357,7 @@ const App = () => {
     // Check for collision between player and rocks
     rocks.forEach((rock) => {
       if (isCollision(playerPosition, rock)) {
-        alert('Game Over');
-        setScore(0);
-        setPlayerPosition({ x: 200, y: 650 });
-        setPlayerBullets([]);
-        setRocks([]);
+        gameOver();
       }
     });
   }, [playerPosition, rocks]);
@@ -372,6 +400,10 @@ const App = () => {
 
     // Draw the player at the updated position
     let currentImage = playerImg;
+
+    if (isGameOver) {
+      currentImage = playerDamagedImg;
+    }
 
     if (isMovingLeft) {
       currentImage = playerLeftImg;
@@ -417,6 +449,12 @@ const App = () => {
       align='center'>
       <div className='ScoreBoard'>{score}</div>
       <GameCanvas onRender={renderCanvas} />
+      {isGameOver && (
+        <div className='game-over'>
+          <h1>Game Over</h1>
+          <button onClick={restartGame}>Restart</button>
+        </div>
+      )}
     </div>
   );
 };
