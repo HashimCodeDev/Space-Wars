@@ -66,7 +66,20 @@ const App = () => {
         y: particle.y + particle.speedY,
       }))
     );
-  }, []);
+    setParticles((prevParticles) => {
+      // Map through particles and reset those that are off-screen
+      return prevParticles.map((particle) => {
+        if (particle.y >= 750) {
+          // Reset particle's y position to 0 when it goes off-screen
+          return {
+            ...particle,
+            y: 0,
+          };
+        }
+        return particle;
+      });
+    });
+  });
 
   //Creates a new bullet when the space key is pressed
   const newBullet = useMemo(
@@ -90,11 +103,9 @@ const App = () => {
       let newX = prevPosition.x;
       if (isMovingLeft && newX > 0) {
         newX -= playerSpeed;
-        console.log('Moving left');
       }
       if (isMovingRight && newX < 360) {
         newX += playerSpeed;
-        console.log('Moving right');
       }
       return { ...prevPosition, x: newX };
     });
@@ -124,15 +135,7 @@ const App = () => {
   // Function to spawn enemies
   const enemySpawner = useCallback(() => {
     const randomX = Math.floor(Math.random() * 350);
-    rocks.forEach((rock) => {
-      if (rock.x === randomX) {
-        return;
-      }
-    });
-    setEnemies((prevEnemies) => [
-      ...prevEnemies,
-      { x: randomX, y: 0, image: enemyImg },
-    ]);
+    setEnemies((prevEnemies) => [...prevEnemies, { x: randomX, y: 0 }]);
   }, []);
 
   // Function to move the enemies
@@ -178,7 +181,6 @@ const App = () => {
       // Check if the key pressed is the left or right arrow key
       if (event.key === 'ArrowLeft') {
         if (!isMovingRight) {
-          console.log('Started moving left');
           setIsMovingLeft(true);
           if (!playerAnimationFrameId.current) {
             movePlayer();
@@ -186,7 +188,6 @@ const App = () => {
         }
       } else if (event.key === 'ArrowRight') {
         if (!isMovingLeft) {
-          console.log('Started moving Right');
           setIsMovingRight(true);
           if (!playerAnimationFrameId.current) {
             movePlayer();
@@ -194,7 +195,6 @@ const App = () => {
         }
       }
       if (event.key === ' ' || event.key === 'ArrowUp') {
-        console.log('Fired a bullet');
         fireBullet();
       }
     };
@@ -203,10 +203,8 @@ const App = () => {
     const handleKeyUp = (event) => {
       if (event.key === 'ArrowLeft') {
         setIsMovingLeft(false);
-        console.log('Stopped moving left');
       } else if (event.key === 'ArrowRight') {
         setIsMovingRight(false);
-        console.log('Stopped moving right');
       }
     };
 
@@ -244,22 +242,6 @@ const App = () => {
 
   //Move the particles
   useEffect(() => {
-    setParticles((prevParticles) => {
-      // Map through particles and reset those that are off-screen
-      return prevParticles.map((particle) => {
-        if (particle.y >= 750) {
-          // Reset particle's y position to 0 when it goes off-screen
-          return {
-            ...particle,
-            y: 0,
-            // Optionally reset the x position to a new random value
-            x: Math.random() * 400, // Random x position
-          };
-        }
-        return particle;
-      });
-    });
-
     if (particles.length > 0) {
       const particleAnimationFrameId = requestAnimationFrame(updateParticles);
       return () => {
@@ -364,6 +346,18 @@ const App = () => {
       });
     });
   }, [playerBullets, rocks]);
+
+  //check for collision between rocks and enemies
+  useEffect(() => {
+    enemies.forEach((enemy) => {
+      rocks.forEach((rock) => {
+        if (isCollision(rock, enemy)) {
+          setEnemies((prevEnemies) => prevEnemies.filter((e) => e !== enemy));
+          enemySpawner();
+        }
+      });
+    });
+  }, [enemies, rocks, enemySpawner]);
 
   // Function to render the canvas
   const renderCanvas = (ctx, canvasWidth, canvasHeight) => {
