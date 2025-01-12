@@ -37,6 +37,8 @@ const playerDamagedImg = preloadImage(playerDamaged);
 const bulletImg = preloadImage(playerBulletImage);
 const bulletHitImg = preloadImage(playerBulletHitImage);
 const enemyImg = preloadImage(enemyImage);
+const enemyBulletImg = preloadImage(enemyBulletImage);
+const enemyBulletHitImg = preloadImage(enemyBulletHitImage);
 const rockImg = preloadImage(rockImage);
 
 const App = () => {
@@ -49,6 +51,7 @@ const App = () => {
 
   const [isMovingLeft, setIsMovingLeft] = useState(false);
   const [isMovingRight, setIsMovingRight] = useState(false);
+  const [isGameStarted, setIsGameStarted] = useState(false);
   const [isGameOver, setIsGameOver] = useState(false);
 
   const playerAnimationFrameId = React.useRef(null);
@@ -56,14 +59,22 @@ const App = () => {
   const enemyAnimationFrameId = React.useRef(null);
   const rockAnimationFrameId = React.useRef(null);
 
+  let ENEMY_SPAWN_INTERVAL = Math.random() * 5000;
+  let ROCK_SPAWN_INTERVAL = Math.random() * 1000;
+
   const [playerSpeed, setPlayerSpeed] = useState(5); // Define how fast the player moves per frame
-  const [bulletSpeed, setBulletSpeed] = useState(5); // Define how fast the bullet moves per frame
+  const [bulletSpeed, setBulletSpeed] = useState(15); // Define how fast the bullet moves per frame
+  const [enemyBulletSpeed, setEnemyBulletSpeed] = useState(5);
   const [enemySpeed, setEnemySpeed] = useState(2);
 
+  function startGame() {
+    setIsGameStarted(true);
+  }
   function gameOver() {
     setIsGameOver(true);
     setPlayerSpeed(0);
     setBulletSpeed(0);
+    setEnemyBulletSpeed(0);
     setEnemySpeed(0);
   }
 
@@ -73,20 +84,30 @@ const App = () => {
       cancelAnimationFrame(bulletAnimationFrameId.current);
       cancelAnimationFrame(enemyAnimationFrameId.current);
       cancelAnimationFrame(rockAnimationFrameId.current);
+
+      setPlayerBullets([]);
+      setEnemies((prevEnemies) =>
+        prevEnemies.map((enemy) => ({
+          ...enemy,
+          bullets: [], // Reset bullets to an empty array for each enemy
+        }))
+      );
     }
   }, [isGameOver]);
 
   function restartGame() {
-    setIsGameOver(false);
+    setPlayerBullets([]);
+    setEnemies([]);
+    setRocks([]);
     setIsMovingLeft(false);
     setIsMovingRight(false);
     setPlayerSpeed(5);
-    setBulletSpeed(5);
+    setBulletSpeed(15);
     setEnemySpeed(2);
+    setEnemyBulletSpeed(5);
     setScore(0);
     setPlayerPosition({ x: 200, y: 650 });
-    setPlayerBullets([]);
-    setRocks([]);
+    setIsGameOver(false);
   }
 
   // Function to update the particles
@@ -113,7 +134,7 @@ const App = () => {
         return particle;
       });
     });
-  });
+  }, [isGameOver]);
 
   //Creates a new bullet when the space key is pressed
   const newBullet = useMemo(
@@ -124,37 +145,41 @@ const App = () => {
       hitTimer: 0,
       image: bulletImg,
     }),
-    [playerPosition.x]
+    [playerPosition.x, bulletSpeed]
   );
 
   const scoreUpdation = useCallback(() => {
     if (!isGameOver) {
       setScore(score + 1);
     }
-  }, [score]);
+  }, [score, isGameOver]);
 
   // Function to move the player
   const movePlayer = useCallback(() => {
-    setPlayerPosition((prevPosition) => {
-      let newX = prevPosition.x;
-      if (isMovingLeft && newX > 0) {
-        newX -= playerSpeed;
+    if (isGameOver) return;
+    if (isGameStarted) {
+      setPlayerPosition((prevPosition) => {
+        let newX = prevPosition.x;
+        if (isMovingLeft && newX > 0) {
+          newX -= playerSpeed;
+        }
+        if (isMovingRight && newX < 360) {
+          newX += playerSpeed;
+        }
+        return { ...prevPosition, x: newX };
+      });
+      if (isMovingLeft || isMovingRight) {
+        playerAnimationFrameId.current = requestAnimationFrame(movePlayer);
+      } else {
+        cancelAnimationFrame(playerAnimationFrameId.current);
+        playerAnimationFrameId.current = null;
       }
-      if (isMovingRight && newX < 360) {
-        newX += playerSpeed;
-      }
-      return { ...prevPosition, x: newX };
-    });
-    if (isMovingLeft || isMovingRight) {
-      playerAnimationFrameId.current = requestAnimationFrame(movePlayer);
-    } else {
-      cancelAnimationFrame(playerAnimationFrameId.current);
-      playerAnimationFrameId.current = null;
     }
-  }, [isMovingLeft, isMovingRight]);
+  }, [isGameStarted, playerSpeed, isMovingLeft, isMovingRight, isGameOver]);
 
   // Function to move the bullets
   const moveBullets = useCallback(() => {
+    if (isGameOver) return;
     setPlayerBullets((prevBullets) =>
       prevBullets
         .map((bullet) => ({ ...bullet, y: bullet.y - bullet.speed }))
@@ -162,59 +187,96 @@ const App = () => {
     );
 
     bulletAnimationFrameId.current = requestAnimationFrame(moveBullets);
-  });
 
-  const fireBullet = throttle(100, () => {
-    setPlayerBullets((prevBullets) => [...prevBullets, newBullet]);
-  });
+    return () => {
+      cancelAnimationFrame(bulletAnimationFrameId);
+    };
+  }, [setPlayerBullets, isGameOver]);
+
+  const fireBullet = useCallback(
+    throttle(100, () => {
+      setPlayerBullets((prevBullets) => [...prevBullets, newBullet]);
+    }),
+    [newBullet]
+  );
 
   // Function to spawn enemies
   const enemySpawner = useCallback(() => {
-    const randomX = Math.floor(Math.random() * 350);
-    setEnemies((prevEnemies) => [...prevEnemies, { x: randomX, y: 0 }]);
-  }, []);
+    if (isGameOver) return;
+    if (isGameStarted) {
+      const randomX = Math.floor(Math.random() * 350);
+      setEnemies((prevEnemies) => [
+        ...prevEnemies,
+        { x: randomX, y: 0, bullets: [] },
+      ]);
+    }
+  }, [isGameStarted, isGameOver]);
 
   // Function to move the enemies
   const moveEnemies = useCallback(() => {
+    if (isGameOver) return;
     setEnemies((prevEnemies) =>
       prevEnemies
         .map((enemy) => ({ ...enemy, y: enemy.y + enemySpeed }))
-        .filter((enemy) => enemy.y < 700)
+        .filter((enemy) => enemy.y < 750)
     );
     enemyAnimationFrameId.current = requestAnimationFrame(moveEnemies);
-  });
+    return () => {
+      cancelAnimationFrame(enemyAnimationFrameId.current);
+    };
+  }, [setEnemies, enemySpeed, isGameOver]);
 
   // Function to spawn rocks
   const rockSpawner = useCallback(() => {
-    const randomX = Math.floor(Math.random() * 350);
-    setRocks((prevRocks) => [
-      ...prevRocks,
-      { x: randomX, y: 0, image: rockImg },
-    ]);
-  }, []);
+    if (isGameOver) return;
+    if (isGameStarted) {
+      const randomX = Math.floor(Math.random() * 350);
+      setRocks((prevRocks) => [
+        ...prevRocks,
+        { x: randomX, y: 0, image: rockImg },
+      ]);
+    }
+  }, [isGameStarted, isGameOver]);
 
   // Function to move the rocks
   const moveRocks = useCallback(() => {
+    if (isGameOver) return;
     setRocks((prevRocks) =>
       prevRocks
         .map((rock) => ({ ...rock, y: rock.y + enemySpeed }))
-        .filter((rock) => rock.y < 700)
+        .filter((rock) => rock.y < 750)
     );
     rockAnimationFrameId.current = requestAnimationFrame(moveRocks);
-  });
+    return () => {
+      cancelAnimationFrame(rockAnimationFrameId.current);
+    };
+  }, [setRocks, enemySpeed, isGameOver]);
 
   //Update the score
   useEffect(() => {
-    const scoreInterval = setInterval(scoreUpdation, 1000);
-    return () => {
-      clearInterval(scoreInterval);
-    };
-  }, [scoreUpdation]);
+    if (isGameStarted) {
+      const scoreInterval = setInterval(scoreUpdation, 1000);
+      if (isGameOver) {
+        clearInterval(scoreInterval);
+      }
+      return () => {
+        clearInterval(scoreInterval);
+      };
+    }
+  }, [scoreUpdation, isGameStarted, isGameOver]);
 
   // Handle key down and key up events
   useEffect(() => {
     const handleKeyDown = (event) => {
       // Check if the key pressed is the left or right arrow key
+      if (event.key === 'Enter') {
+        setIsGameStarted(true);
+      }
+
+      if (event.key === 'R' || event.key === 'r') {
+        restartGame();
+      }
+
       if (event.key === 'ArrowLeft') {
         if (!isMovingRight) {
           setIsMovingLeft(true);
@@ -265,8 +327,8 @@ const App = () => {
         x: Math.floor(Math.random() * 400),
         y: Math.floor(Math.random() * 700),
         speedX: 0,
-        speedY: playerSpeed / 2, // Speed of the player
-        width: Math.random() * 3 + 1, // Random size between 1 and 4
+        speedY: Math.random() * playerSpeed,
+        width: (Math.random() + 0.1) * 3 + 1, // Random size between 1 and 4
         height: Math.random() * 3 + 1,
         color: `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${
           Math.random() * 255
@@ -274,7 +336,7 @@ const App = () => {
       });
     }
     setParticles(newParticles);
-  }, []);
+  }, [playerSpeed, setParticles]);
 
   //Move the particles
   useEffect(() => {
@@ -298,11 +360,18 @@ const App = () => {
 
   // Spawn enemies every 5 seconds
   useEffect(() => {
-    const enemySpawnerInterval = setInterval(enemySpawner, 5000);
+    if (isGameOver) return;
+    const enemySpawnerInterval = setInterval(
+      enemySpawner,
+      ENEMY_SPAWN_INTERVAL
+    );
+    if (isGameOver) {
+      clearInterval(enemySpawnerInterval);
+    }
     return () => {
       clearInterval(enemySpawnerInterval);
     };
-  }, [enemySpawner]);
+  }, [enemySpawner, isGameStarted, ENEMY_SPAWN_INTERVAL, isGameOver]);
 
   // Move the enemies
   useEffect(() => {
@@ -314,13 +383,70 @@ const App = () => {
     };
   }, [enemies, moveEnemies]);
 
+  useEffect(() => {
+    if (isGameOver) return;
+
+    let lastShootTime = 0;
+
+    const shootBullets = (timestamp) => {
+      if (timestamp - lastShootTime > 4000) {
+        // Shoot every 2 seconds
+        setEnemies((prevEnemies) =>
+          prevEnemies.map((enemy) => ({
+            ...enemy,
+            bullets: [
+              ...enemy.bullets,
+              {
+                x: enemy.x + 15,
+                y: enemy.y + 10,
+              },
+            ],
+          }))
+        );
+        lastShootTime = timestamp;
+      }
+
+      requestAnimationFrame(shootBullets); // Keep the loop running
+    };
+
+    bulletAnimationFrameId.current = requestAnimationFrame(shootBullets);
+    return () => cancelAnimationFrame(bulletAnimationFrameId.current); // Cleanup on unmount
+  }, [isGameOver]);
+
+  useEffect(() => {
+    if (!isGameOver && isGameStarted) {
+      const moveBullets = () => {
+        setEnemies((prevEnemies) =>
+          prevEnemies.map((enemy) => ({
+            ...enemy,
+            bullets: enemy.bullets
+              .map((bullet) => ({
+                ...bullet,
+                y: bullet.y + enemyBulletSpeed, // Move the bullet downward
+              }))
+              .filter((bullet) => bullet.y <= 750), // Remove bullets that go off-screen
+          }))
+        );
+
+        console.log('Bullet Speed:', enemyBulletSpeed);
+        requestAnimationFrame(moveBullets); // Keep the loop running
+      };
+
+      const animationId = requestAnimationFrame(moveBullets);
+      return () => cancelAnimationFrame(animationId); // Cleanup on unmount
+    }
+  }, [isGameOver, enemyBulletSpeed, isGameStarted]);
+
   //Spawn Rock every 2 seconds
   useEffect(() => {
-    const rockSpawnerInterval = setInterval(rockSpawner, 2000);
+    const rockSpawnerInterval = setInterval(rockSpawner, ROCK_SPAWN_INTERVAL);
+    if (isGameOver) {
+      clearInterval(rockSpawnerInterval);
+    }
     return () => {
       clearInterval(rockSpawnerInterval);
     };
-  }, [rockSpawner]);
+  }, [rockSpawner, isGameStarted, ROCK_SPAWN_INTERVAL, isGameOver]);
 
   //Move the rocks
   useEffect(() => {
@@ -342,7 +468,7 @@ const App = () => {
         }
       });
     });
-  }, [playerBullets, enemies]);
+  }, [playerBullets, enemies, score]);
 
   useEffect(() => {
     // Check for collision between player and enemies
@@ -350,6 +476,11 @@ const App = () => {
       if (isCollision(playerPosition, enemy)) {
         gameOver();
       }
+      enemy.bullets.forEach((bullet) => {
+        if (isCollision(bullet, playerPosition)) {
+          gameOver();
+        }
+      });
     });
   }, [playerPosition, enemies]);
 
@@ -398,48 +529,58 @@ const App = () => {
       ctx.fillRect(particle.x, particle.y, particle.width, particle.height);
     });
 
-    // Draw the player at the updated position
-    let currentImage = playerImg;
+    if (isGameStarted) {
+      // Draw the player at the updated position
+      let currentImage = playerImg;
 
-    if (isGameOver) {
-      currentImage = playerDamagedImg;
-    }
-
-    if (isMovingLeft) {
-      currentImage = playerLeftImg;
-    }
-    if (isMovingRight) {
-      currentImage = playerRightImg;
-    }
-    ctx.drawImage(currentImage, playerPosition.x, playerPosition.y, 40, 40);
-
-    // Draw the bullets
-    playerBullets.forEach((bullet) => {
-      const hitEnemy = enemies.find((enemy) => isCollision(bullet, enemy));
-      const hitRock = rocks.find((rock) => isCollision(bullet, rock));
-      if (hitEnemy || hitRock) {
-        bullet.hitTimer = 10;
-        bullet.speed = 0;
+      if (isGameOver) {
+        currentImage = playerDamagedImg;
       }
 
-      if (bullet.hitTimer > 0) {
-        ctx.drawImage(bulletHitImg, bullet.x, bullet.y, 10, 20);
-        bullet.hitTimer--;
-      } else {
-        if (bullet.speed === 0) {
-          setPlayerBullets((prevBullets) =>
-            prevBullets.filter((b) => b !== bullet)
-          );
+      if (isMovingLeft) {
+        currentImage = playerLeftImg;
+      }
+      if (isMovingRight) {
+        currentImage = playerRightImg;
+      }
+      ctx.drawImage(currentImage, playerPosition.x, playerPosition.y, 40, 40);
+
+      if (!isGameOver) {
+        // Draw the bullets
+        playerBullets.forEach((bullet) => {
+          const hitEnemy = enemies.find((enemy) => isCollision(bullet, enemy));
+          const hitRock = rocks.find((rock) => isCollision(bullet, rock));
+          if (hitEnemy || hitRock) {
+            bullet.hitTimer = 10;
+            bullet.speed = 0;
+          }
+
+          if (bullet.hitTimer > 0) {
+            ctx.drawImage(bulletHitImg, bullet.x, bullet.y, 10, 20);
+            bullet.hitTimer--;
+          } else {
+            if (bullet.speed === 0) {
+              setPlayerBullets((prevBullets) =>
+                prevBullets.filter((b) => b !== bullet)
+              );
+            }
+            ctx.drawImage(bulletImg, bullet.x, bullet.y, 10, 20);
+          }
+        });
+      }
+      enemies.forEach((enemy) => {
+        ctx.drawImage(enemyImg, enemy.x, enemy.y, 40, 40);
+
+        if (!isGameOver && enemy.bullets.length > 0) {
+          enemy.bullets.forEach((bullet) => {
+            ctx.drawImage(enemyBulletImg, bullet.x, bullet.y, 10, 20);
+          });
         }
-        ctx.drawImage(bulletImg, bullet.x, bullet.y, 10, 20);
-      }
-    });
-    enemies.forEach((enemy) => {
-      ctx.drawImage(enemyImg, enemy.x, enemy.y, 40, 40);
-    });
-    rocks.forEach((rock) => {
-      ctx.drawImage(rockImg, rock.x, rock.y, 40, 40);
-    });
+      });
+      rocks.forEach((rock) => {
+        ctx.drawImage(rockImg, rock.x, rock.y, 40, 40);
+      });
+    }
   };
 
   // Render the canvas
@@ -447,12 +588,26 @@ const App = () => {
     <div
       className='Canvas'
       align='center'>
-      <div className='ScoreBoard'>{score}</div>
       <GameCanvas onRender={renderCanvas} />
+      {isGameStarted && <div className='ScoreBoard'>{score}</div>}
+      {!isGameStarted && (
+        <div className='start-screen'>
+          <h1 className='title'>SPACE WARS</h1>
+          <button
+            className='start'
+            onClick={startGame}>
+            START GAME
+          </button>
+        </div>
+      )}
       {isGameOver && (
         <div className='game-over'>
-          <h1>Game Over</h1>
-          <button onClick={restartGame}>Restart</button>
+          <h1 className='text'>Game Over</h1>
+          <button
+            className='restart'
+            onClick={restartGame}>
+            Restart
+          </button>
         </div>
       )}
     </div>

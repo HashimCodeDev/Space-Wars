@@ -1,3 +1,20 @@
+@font-face {
+  font-family: 'Distant Galaxy';
+  src: url('../public/fonts/SF Distant Galaxy Outline Italic.ttf');
+}
+
+@font-face {
+  font-family: 'Emulogic';
+  src: url('../public/fonts/Emulogic-zrEw.ttf');
+}
+
+:root{
+  --button-background: #09041e;
+  --button-color: #fff;
+  --button-shadow: rgba(33, 4, 104, 0.2);
+  --button-shine-left: rgba(120, 0, 245, 0.5);
+}
+
 /* General reset to remove default margin and padding */
 * {
     margin: 0;
@@ -46,33 +63,86 @@
     padding: 10px;
     border-radius: 5px;
   }
+
+  .start-screen{
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    position-area: center;
+    height: 50vh;
+    width: 30vw;
+    z-index: 1;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .title{
+    position: relative;
+    font-family: 'Distant Galaxy',sans-serif;
+    width: 25vw;
+    font-size: 80px;
+    top: 15%;
+  }
   
-  /* Styling for buttons or any interactive elements */
-  button {
+  .start {
+    position: absolute;
+    top: 70%;
     padding: 10px 20px;
-    background-color: #1d1d1d;
-    color: #fff;
-    border: 1px solid #444;
+    background-color: var(--button-background);
+    color: var(--button-color);
+    border: 1px solid var(--button-shine-left);
     cursor: pointer;
     border-radius: 5px;
     font-size: 16px;
-    transition: background-color 0.3s ease;
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 20px var(--button-shadow);
+    z-index: 1;
+  }
+
+  .restart {
+    position: relative;
+    top: 50px;
+    padding: 10px 20px;
+    background-color: var(--button-background);
+    color: var(--button-color);
+    border: 1px solid var(--button-shine-left);
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 20px var(--button-shadow);
+    z-index: 1;
   }
   
-  button:hover {
-    background-color: #333;
+  .start:hover,.restart:hover {
+    background-color: var(--button-shadow);
+  }
+
+  .start:active, .restart:active {
+    transform: scale(0.98);
+    box-shadow: 0 4px 10px var(--button-shadow);
   }
   
-  /* Optional: Add a "Game Over" message or score panel */
   .game-over {
     position: absolute;
+    align-items: center;
+    background-color: #29282890;
+    border-radius: 15px;
+    height: 35vh;
+    width: 20vw;
     top: 50%;
     left: 50%;
     z-index: 1;
     transform: translate(-50%, -50%);
-    font-size: 30px;
-    color: red;
+    font-size: 25px;
+    color: rgb(255, 255, 255);
     font-weight: bold;
+  }
+
+  .text{
+    position: relative;
+    top: 30px;
+    font-family: 'Emulogic',sans-serif;
   }
 
   .ScoreBoard {
